@@ -55,6 +55,30 @@ function formatDateDisplay(dateStr) {
   return dateStr;
 }
 
+// Helper to format concise date ranges like "Sep 9–12, 2025"
+function formatDateRangeShort(d1Str, d2Str) {
+  if (!d1Str) return '';
+  if (!d2Str || d1Str === d2Str) return formatDateDisplay(d1Str);
+  const d1 = new Date(d1Str);
+  const d2 = new Date(d2Str);
+  if (isNaN(d1.getTime()) || isNaN(d2.getTime())) {
+    return `${formatDateDisplay(d1Str)} – ${formatDateDisplay(d2Str)}`;
+  }
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const m1 = months[d1.getMonth()];
+  const m2 = months[d2.getMonth()];
+  const y1 = d1.getFullYear();
+  const y2 = d2.getFullYear();
+
+  if (y1 === y2) {
+    if (m1 === m2) {
+      return `${m1} ${d1.getDate()}–${d2.getDate()}, ${y1}`;
+    }
+    return `${m1} ${d1.getDate()} – ${m2} ${d2.getDate()}, ${y1}`;
+  }
+  return `${m1} ${d1.getDate()}, ${y1} – ${m2} ${d2.getDate()}, ${y2}`;
+}
+
 // Helper to add days to YYYY-MM-DD string
 function addDaysToDate(dateStr, daysToAdd) {
   if (!dateStr) return '';
@@ -62,6 +86,43 @@ function addDaysToDate(dateStr, daysToAdd) {
   if (isNaN(d.getTime())) return dateStr;
   d.setDate(d.getDate() + daysToAdd);
   return d.toISOString().split('T')[0];
+}
+
+// Synchronize Class commencement date, completion date, total days, and halt days from its itinerary
+function syncClassDatesFromItinerary(c) {
+  if (!c || !c.itinerary || c.itinerary.length === 0) return;
+
+  const validDates = c.itinerary.map(it => it.dateFrom).filter(d => Boolean(d)).sort();
+  if (validDates.length > 0) {
+    const minDate = validDates[0];
+    const maxDate = validDates[validDates.length - 1];
+
+    c.commenceDate = minDate;
+    c.completeDate = maxDate;
+
+    const d1 = new Date(minDate);
+    const d2 = new Date(maxDate);
+    if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+      const diffDays = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+      const uniqueDates = new Set(validDates);
+      const totalDays = Math.max(diffDays, uniqueDates.size, 1);
+      c.totalDays = totalDays;
+      c.haltDays = Math.max(0, totalDays - 1);
+    }
+
+    // If active profile form is currently on screen, refresh its input values
+    if (c.id === activeClassId) {
+      const elCommence = document.getElementById('clsCommenceDate');
+      const elComplete = document.getElementById('clsCompleteDate');
+      const elTotalDays = document.getElementById('clsTotalDays');
+      const elHaltDays = document.getElementById('clsHaltDays');
+
+      if (elCommence) elCommence.value = c.commenceDate || '';
+      if (elComplete) elComplete.value = c.completeDate || '';
+      if (elTotalDays) elTotalDays.value = c.totalDays || 1;
+      if (elHaltDays) elHaltDays.value = c.haltDays || 0;
+    }
+  }
 }
 
 // Normalize legacy time string to 24h HH:MM format
@@ -121,13 +182,14 @@ function initApp() {
     tourData = JSON.parse(JSON.stringify(INITIAL_TOUR_DATA));
   }
 
-  // Standardize times in dataset
+  // Standardize times in dataset and sync dates
   if (tourData.classes) {
     tourData.classes.forEach(c => {
       (c.itinerary || []).forEach(it => {
         it.timeFrom = normalizeTo24h(it.timeFrom);
         it.timeTo = normalizeTo24h(it.timeTo);
       });
+      syncClassDatesFromItinerary(c);
     });
   }
 
@@ -327,8 +389,26 @@ function saveActiveClassProfile() {
   c.placesOfVisit = document.getElementById('clsPlacesOfVisit').value;
   c.commenceDate = document.getElementById('clsCommenceDate').value;
   c.completeDate = document.getElementById('clsCompleteDate').value;
-  c.totalDays = parseInt(document.getElementById('clsTotalDays').value) || 4;
-  c.haltDays = parseInt(document.getElementById('clsHaltDays').value) || 3;
+
+  // Auto calculate total days and halt days if dates are present
+  if (c.commenceDate && c.completeDate) {
+    const d1 = new Date(c.commenceDate);
+    const d2 = new Date(c.completeDate);
+    if (!isNaN(d1.getTime()) && !isNaN(d2.getTime()) && d2 >= d1) {
+      const diff = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+      c.totalDays = diff;
+      c.haltDays = Math.max(0, diff - 1);
+      document.getElementById('clsTotalDays').value = c.totalDays;
+      document.getElementById('clsHaltDays').value = c.haltDays;
+    } else {
+      c.totalDays = parseInt(document.getElementById('clsTotalDays').value) || 4;
+      c.haltDays = parseInt(document.getElementById('clsHaltDays').value) || 3;
+    }
+  } else {
+    c.totalDays = parseInt(document.getElementById('clsTotalDays').value) || 4;
+    c.haltDays = parseInt(document.getElementById('clsHaltDays').value) || 3;
+  }
+
   c.accompanyingStaff = document.getElementById('clsAccompanyingStaff').value;
   c.escortingStaff = document.getElementById('clsEscortingStaff').value;
 
@@ -566,6 +646,7 @@ function updateItineraryField(idx, field, val) {
   if (field === 'dateFrom') {
     c.itinerary[idx]['dateTo'] = val;
   }
+  syncClassDatesFromItinerary(c);
   saveData();
   renderItineraryTable();
 }
@@ -581,8 +662,10 @@ function addItineraryItem() {
   if (c.itinerary.length > 0) {
     const lastItem = c.itinerary[c.itinerary.length - 1];
     const match = (lastItem.day || '').match(/\d+/);
-    nextDayNum = match ? parseInt(match[0]) : c.itinerary.length + 1;
-    nextDate = lastItem.dateFrom || nextDate;
+    nextDayNum = match ? parseInt(match[0]) + 1 : c.itinerary.length + 1;
+    if (lastItem.dateFrom) {
+      nextDate = addDaysToDate(lastItem.dateFrom, 1);
+    }
   }
 
   c.itinerary.push({
@@ -595,6 +678,7 @@ function addItineraryItem() {
     destination: 'Botanical Field Site',
     activity: 'Study and documentation of flora'
   });
+  syncClassDatesFromItinerary(c);
   saveData();
   renderItineraryTable();
 }
@@ -603,6 +687,7 @@ function deleteItineraryItem(idx) {
   const c = getActiveClass();
   if (!c || !c.itinerary[idx]) return;
   c.itinerary.splice(idx, 1);
+  syncClassDatesFromItinerary(c);
   saveData();
   renderItineraryTable();
 }
@@ -632,6 +717,7 @@ function autoSequenceItineraryDates() {
     item.dateTo = currentDate;
   });
 
+  syncClassDatesFromItinerary(c);
   saveData();
   renderItineraryTable();
   alert('Itinerary dates have been auto-sequenced continuously based on the tour commencement date (' + startDate + ').');
@@ -649,6 +735,7 @@ function sortItineraryChronologically() {
     return (a.timeFrom || '').localeCompare(b.timeFrom || '');
   });
 
+  syncClassDatesFromItinerary(c);
   saveData();
   renderItineraryTable();
 }
@@ -831,13 +918,47 @@ function updateStats() {
   let totalBoys = 0;
   let totalGirls = 0;
 
+  let allDates = [];
+  let maxClassDays = 0;
+  let maxHaltDays = 0;
+
   tourData.classes.forEach(c => {
     (c.students || []).forEach(s => {
       totalStudents++;
       if ((s.gender || '').toLowerCase().startsWith('m')) totalBoys++;
       else totalGirls++;
     });
+
+    (c.itinerary || []).forEach(it => {
+      if (it.dateFrom) allDates.push(it.dateFrom);
+      if (it.dateTo) allDates.push(it.dateTo);
+    });
+
+    if (c.commenceDate) allDates.push(c.commenceDate);
+    if (c.completeDate) allDates.push(c.completeDate);
+
+    if (c.totalDays && c.totalDays > maxClassDays) maxClassDays = c.totalDays;
+    if (c.haltDays && c.haltDays > maxHaltDays) maxHaltDays = c.haltDays;
   });
+
+  allDates = Array.from(new Set(allDates)).filter(Boolean).sort();
+
+  let totalTourDays = maxClassDays || 4;
+  let totalHaltDays = maxHaltDays || Math.max(0, totalTourDays - 1);
+  let dateRangeStr = '';
+
+  if (allDates.length > 0) {
+    const minDate = allDates[0];
+    const maxDate = allDates[allDates.length - 1];
+    const d1 = new Date(minDate);
+    const d2 = new Date(maxDate);
+    if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+      const diff = Math.round((d2 - d1) / (1000 * 60 * 60 * 24)) + 1;
+      totalTourDays = Math.max(diff, totalTourDays);
+      totalHaltDays = Math.max(0, totalTourDays - 1);
+    }
+    dateRangeStr = formatDateRangeShort(minDate, maxDate);
+  }
 
   let totalCost = 0;
   (tourData.budgetItems || []).forEach(item => {
@@ -851,11 +972,15 @@ function updateStats() {
   const statClasses = document.getElementById('statTotalClasses');
   const statBudget = document.getElementById('statTotalBudget');
   const statGender = document.getElementById('statGenderBreakdown');
+  const statDuration = document.getElementById('statTourDuration');
+  const statDates = document.getElementById('statTourDates');
 
   if (statStudents) statStudents.innerText = totalStudents;
   if (statClasses) statClasses.innerText = tourData.classes.length;
   if (statBudget) statBudget.innerText = '₹' + totalCost.toLocaleString('en-IN');
   if (statGender) statGender.innerText = `${totalBoys} Boys / ${totalGirls} Girls`;
+  if (statDuration) statDuration.innerText = `${totalTourDays} Days`;
+  if (statDates) statDates.innerText = `${totalHaltDays} Days Halt ${dateRangeStr ? '(' + dateRangeStr + ')' : ''}`;
 }
 
 // --- PRINT & PREVIEW ENGINE ---
