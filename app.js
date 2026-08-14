@@ -64,6 +64,50 @@ function addDaysToDate(dateStr, daysToAdd) {
   return d.toISOString().split('T')[0];
 }
 
+// Normalize legacy time string to 24h HH:MM format
+function normalizeTo24h(val) {
+  if (!val) return '06:00';
+  val = String(val).trim().toLowerCase();
+  if (/^\d{2}:\d{2}$/.test(val)) return val;
+
+  const m = val.match(/^(\d{1,2})[:.](\d{2})\s*(am|pm)?$/);
+  if (m) {
+    let h = parseInt(m[1], 10);
+    const mins = m[2];
+    const ampm = m[3];
+    if (ampm === 'pm' && h < 12) h += 12;
+    else if (ampm === 'am' && h === 12) h = 0;
+    return `${String(h).padStart(2, '0')}:${mins}`;
+  }
+
+  const m2 = val.match(/^(\d{1,2})\s*(am|pm)$/);
+  if (m2) {
+    let h = parseInt(m2[1], 10);
+    const ampm = m2[2];
+    if (ampm === 'pm' && h < 12) h += 12;
+    else if (ampm === 'am' && h === 12) h = 0;
+    return `${String(h).padStart(2, '0')}:00`;
+  }
+
+  return val;
+}
+
+// Format 24h HH:MM time into clean 12h AM/PM string for print
+function formatTimeTo12h(timeStr) {
+  if (!timeStr) return '';
+  timeStr = normalizeTo24h(timeStr);
+  const parts = timeStr.split(':');
+  if (parts.length < 2) return timeStr;
+
+  let h = parseInt(parts[0], 10);
+  const mins = parts[1];
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  h = h % 12;
+  if (h === 0) h = 12;
+
+  return `${String(h).padStart(2, '0')}:${mins} ${ampm}`;
+}
+
 // --- Initialize App State ---
 function initApp() {
   const saved = localStorage.getItem('TOUR_PROPOSAL_DATA');
@@ -75,6 +119,16 @@ function initApp() {
     }
   } else {
     tourData = JSON.parse(JSON.stringify(INITIAL_TOUR_DATA));
+  }
+
+  // Ensure all itinerary times are standardized
+  if (tourData.classes) {
+    tourData.classes.forEach(c => {
+      (c.itinerary || []).forEach(it => {
+        it.timeFrom = normalizeTo24h(it.timeFrom);
+        it.timeTo = normalizeTo24h(it.timeTo);
+      });
+    });
   }
 
   if (tourData.classes && tourData.classes.length > 0) {
@@ -443,7 +497,7 @@ function processBulkImport() {
   renderActiveProfileForm();
 }
 
-// --- Itinerary Table Management with Continuous Chronological Ordering ---
+// --- Itinerary Table Management with Clock Picker & Continuous Sequencing ---
 function renderItineraryTable() {
   const c = getActiveClass();
   const tbody = document.getElementById('itineraryTableBody');
@@ -458,12 +512,14 @@ function renderItineraryTable() {
   let html = '';
   let prevDate = null;
   itinerary.forEach((item, idx) => {
-    // Check if dates are non-continuous / out of order
     let isOutOfOrder = false;
     if (prevDate && item.dateFrom && item.dateFrom < prevDate) {
       isOutOfOrder = true;
     }
     if (item.dateFrom) prevDate = item.dateFrom;
+
+    const tFrom24 = normalizeTo24h(item.timeFrom);
+    const tTo24 = normalizeTo24h(item.timeTo);
 
     html += `
       <tr style="${isOutOfOrder ? 'background-color: #fff1f2;' : ''}">
@@ -474,17 +530,21 @@ function renderItineraryTable() {
           <input type="date" class="form-control" value="${item.dateFrom || ''}" onchange="updateItineraryField(${idx}, 'dateFrom', this.value)" style="${isOutOfOrder ? 'border-color: #f43f5e;' : ''}">
           ${isOutOfOrder ? '<span style="color: #e11d48; font-size: 0.7rem; font-weight: 600;">⚠️ Date out of order</span>' : ''}
         </td>
-        <td style="width: 170px;">
-          <div style="display: flex; gap: 4px; align-items: center;">
-            <input type="text" class="form-control" placeholder="From" value="${item.timeFrom || ''}" onchange="updateItineraryField(${idx}, 'timeFrom', this.value)">
-            <span>-</span>
-            <input type="text" class="form-control" placeholder="To" value="${item.timeTo || ''}" onchange="updateItineraryField(${idx}, 'timeTo', this.value)">
+        <td style="width: 220px;">
+          <div style="display: flex; gap: 6px; align-items: center;">
+            <div style="flex: 1; display: flex; flex-direction: column;">
+              <input type="time" class="form-control" value="${tFrom24}" onchange="updateItineraryField(${idx}, 'timeFrom', this.value)" title="Departure / Start Time">
+            </div>
+            <span style="font-weight: 600; color: #64748b;">–</span>
+            <div style="flex: 1; display: flex; flex-direction: column;">
+              <input type="time" class="form-control" value="${tTo24}" onchange="updateItineraryField(${idx}, 'timeTo', this.value)" title="Arrival / End Time">
+            </div>
           </div>
         </td>
-        <td style="width: 180px;">
+        <td style="width: 170px;">
           <input type="text" class="form-control" placeholder="Starting Point" value="${item.start || ''}" onchange="updateItineraryField(${idx}, 'start', this.value)">
         </td>
-        <td style="width: 180px;">
+        <td style="width: 170px;">
           <input type="text" class="form-control" placeholder="Destination" value="${item.destination || ''}" onchange="updateItineraryField(${idx}, 'destination', this.value)">
         </td>
         <td>
@@ -532,8 +592,8 @@ function addItineraryItem() {
     day: `Day ${nextDayNum}`,
     dateFrom: nextDate,
     dateTo: nextDate,
-    timeFrom: '06.00am',
-    timeTo: '10.00am',
+    timeFrom: '06:00',
+    timeTo: '10:00',
     start: 'Govt. Victoria College, Palakkad',
     destination: 'Botanical Field Site',
     activity: 'Study and documentation of flora'
@@ -560,7 +620,6 @@ function autoSequenceItineraryDates() {
   let currentDate = startDate;
 
   c.itinerary.forEach((item, index) => {
-    // Check if day number is specified
     const match = (item.day || '').match(/\d+/);
     if (match) {
       const dayVal = parseInt(match[0]);
@@ -651,7 +710,6 @@ function renderBudgetTable() {
 
   tbody.innerHTML = html;
 
-  // Render Grand Total Row & Words
   document.getElementById('budgetGrandTotalDays').innerText = grandTotalDays;
   document.getElementById('budgetGrandTotalCost').innerText = '₹' + grandTotalCost.toLocaleString('en-IN');
   document.getElementById('budgetWordsPreview').innerText = numberToIndianWords(grandTotalCost);
@@ -1004,13 +1062,15 @@ function renderItineraryDocHTML(g, c) {
   let rowsHtml = '';
 
   itinerary.forEach((item) => {
+    const timeFormatted = `${formatTimeTo12h(item.timeFrom)} - ${formatTimeTo12h(item.timeTo)}`;
+
     rowsHtml += `
       <tr>
-        <td class="text-center" style="width: 60px; font-weight: 600;">${item.day || ''}</td>
-        <td class="text-center" style="width: 90px;">${formatDateDisplay(item.dateFrom)}</td>
-        <td class="text-center" style="width: 130px; font-size: 8.5pt;">${item.timeFrom} - ${item.timeTo}</td>
-        <td style="width: 140px; font-size: 9pt;">${item.start}</td>
-        <td style="width: 150px; font-size: 9pt;">${item.destination}</td>
+        <td class="text-center" style="width: 55px; font-weight: 600;">${item.day || ''}</td>
+        <td class="text-center" style="width: 85px;">${formatDateDisplay(item.dateFrom)}</td>
+        <td class="text-center" style="width: 140px; font-size: 8.5pt; font-weight: 500;">${timeFormatted}</td>
+        <td style="width: 130px; font-size: 9pt;">${item.start}</td>
+        <td style="width: 140px; font-size: 9pt;">${item.destination}</td>
         <td style="font-size: 9pt;">${item.activity}</td>
       </tr>
     `;
@@ -1031,11 +1091,11 @@ function renderItineraryDocHTML(g, c) {
       <table class="print-table">
         <thead>
           <tr>
-            <th style="width: 60px;">Day</th>
-            <th style="width: 90px;">Date</th>
-            <th style="width: 130px;">Time</th>
-            <th style="width: 140px;">Start</th>
-            <th style="width: 150px;">Destination</th>
+            <th style="width: 55px;">Day</th>
+            <th style="width: 85px;">Date</th>
+            <th style="width: 140px;">Time</th>
+            <th style="width: 130px;">Start</th>
+            <th style="width: 140px;">Destination</th>
             <th>Academic / Field Activity</th>
           </tr>
         </thead>
