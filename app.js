@@ -1266,6 +1266,7 @@ function renderCombinedListDocHTML(g, classes) {
 
 // --- PRINT TRIGGER ---
 function printDocument() {
+  renderPreview();
   window.print();
 }
 

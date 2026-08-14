@@ -842,34 +842,58 @@ textarea.form-control {
     font-size: 10pt !important;
     margin: 0 !important;
     padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
   }
 
   .sidebar,
   .top-bar,
   .preview-toolbar,
-  .content-body,
+  .stats-grid,
   .modal-backdrop,
-  .no-print {
+  .no-print,
+  #generalTab,
+  #classesTab,
+  #itineraryTab,
+  #budgetTab {
     display: none !important;
-  }
-
-  .main-wrapper {
-    height: auto !important;
-    overflow: visible !important;
-    display: block !important;
   }
 
   .app-container {
     display: block !important;
+    min-height: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  .main-wrapper {
+    display: block !important;
+    height: auto !important;
+    min-height: auto !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .content-body {
+    display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 
   #previewTab {
     display: block !important;
+    padding: 0 !important;
+    margin: 0 !important;
   }
 
   .preview-container {
     display: block !important;
     padding: 0 !important;
+    margin: 0 !important;
     gap: 0 !important;
   }
 
@@ -877,15 +901,18 @@ textarea.form-control {
     width: 100% !important;
     min-height: auto !important;
     padding: 0 !important;
-    margin: 0 0 30px 0 !important;
+    margin: 0 0 0 0 !important;
     box-shadow: none !important;
     border: none !important;
     page-break-after: always !important;
+    break-after: page !important;
     page-break-inside: avoid !important;
+    break-inside: avoid !important;
   }
 
   .a4-page:last-child {
     page-break-after: auto !important;
+    break-after: auto !important;
   }
 
   .print-table th {
@@ -894,3 +921,4 @@ textarea.form-control {
     print-color-adjust: exact;
   }
 }
+
