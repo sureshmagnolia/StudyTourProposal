@@ -121,7 +121,7 @@ function initApp() {
     tourData = JSON.parse(JSON.stringify(INITIAL_TOUR_DATA));
   }
 
-  // Ensure all itinerary times are standardized
+  // Standardize times in dataset
   if (tourData.classes) {
     tourData.classes.forEach(c => {
       (c.itinerary || []).forEach(it => {
@@ -497,7 +497,7 @@ function processBulkImport() {
   renderActiveProfileForm();
 }
 
-// --- Itinerary Table Management with Clock Picker & Continuous Sequencing ---
+// --- Itinerary Table Management with Clock Picker, Continuous Dates, and Auto-Wrapping Textareas ---
 function renderItineraryTable() {
   const c = getActiveClass();
   const tbody = document.getElementById('itineraryTableBody');
@@ -523,29 +523,25 @@ function renderItineraryTable() {
 
     html += `
       <tr style="${isOutOfOrder ? 'background-color: #fff1f2;' : ''}">
-        <td style="width: 90px;">
-          <input type="text" class="form-control" value="${item.day || 'Day 1'}" onchange="updateItineraryField(${idx}, 'day', this.value)" style="font-weight: 600;">
+        <td style="width: 85px;">
+          <input type="text" class="form-control" value="${item.day || 'Day 1'}" onchange="updateItineraryField(${idx}, 'day', this.value)" style="font-weight: 600; text-align: center;">
         </td>
-        <td style="width: 150px;">
+        <td style="width: 145px;">
           <input type="date" class="form-control" value="${item.dateFrom || ''}" onchange="updateItineraryField(${idx}, 'dateFrom', this.value)" style="${isOutOfOrder ? 'border-color: #f43f5e;' : ''}">
-          ${isOutOfOrder ? '<span style="color: #e11d48; font-size: 0.7rem; font-weight: 600;">⚠️ Date out of order</span>' : ''}
+          ${isOutOfOrder ? '<span style="color: #e11d48; font-size: 0.7rem; font-weight: 600;">⚠️ Out of order</span>' : ''}
         </td>
-        <td style="width: 220px;">
-          <div style="display: flex; gap: 6px; align-items: center;">
-            <div style="flex: 1; display: flex; flex-direction: column;">
-              <input type="time" class="form-control" value="${tFrom24}" onchange="updateItineraryField(${idx}, 'timeFrom', this.value)" title="Departure / Start Time">
-            </div>
+        <td style="width: 210px;">
+          <div style="display: flex; gap: 5px; align-items: center;">
+            <input type="time" class="form-control" value="${tFrom24}" onchange="updateItineraryField(${idx}, 'timeFrom', this.value)" title="Departure / Start Time">
             <span style="font-weight: 600; color: #64748b;">–</span>
-            <div style="flex: 1; display: flex; flex-direction: column;">
-              <input type="time" class="form-control" value="${tTo24}" onchange="updateItineraryField(${idx}, 'timeTo', this.value)" title="Arrival / End Time">
-            </div>
+            <input type="time" class="form-control" value="${tTo24}" onchange="updateItineraryField(${idx}, 'timeTo', this.value)" title="Arrival / End Time">
           </div>
         </td>
-        <td style="width: 170px;">
-          <input type="text" class="form-control" placeholder="Starting Point" value="${item.start || ''}" onchange="updateItineraryField(${idx}, 'start', this.value)">
+        <td style="width: 180px;">
+          <textarea class="form-control" placeholder="Starting Point" onchange="updateItineraryField(${idx}, 'start', this.value)" style="min-height: 48px; padding: 6px 10px; font-size: 0.825rem;">${item.start || ''}</textarea>
         </td>
-        <td style="width: 170px;">
-          <input type="text" class="form-control" placeholder="Destination" value="${item.destination || ''}" onchange="updateItineraryField(${idx}, 'destination', this.value)">
+        <td style="width: 180px;">
+          <textarea class="form-control" placeholder="Destination" onchange="updateItineraryField(${idx}, 'destination', this.value)" style="min-height: 48px; padding: 6px 10px; font-size: 0.825rem;">${item.destination || ''}</textarea>
         </td>
         <td>
           <textarea class="form-control" placeholder="Academic / Field Activity" onchange="updateItineraryField(${idx}, 'activity', this.value)" style="min-height: 48px; padding: 6px 10px; font-size: 0.825rem;">${item.activity || ''}</textarea>
@@ -686,7 +682,7 @@ function renderBudgetTable() {
           <input type="text" class="form-control" value="${item.paper || ''}" onchange="updateBudgetField(${idx}, 'paper', this.value)">
         </td>
         <td>
-          <input type="text" class="form-control" value="${item.objective || ''}" onchange="updateBudgetField(${idx}, 'objective', this.value)">
+          <textarea class="form-control" onchange="updateBudgetField(${idx}, 'objective', this.value)" style="min-height: 48px; padding: 6px 10px; font-size: 0.825rem;">${item.objective || ''}</textarea>
         </td>
         <td style="width: 70px;">
           <input type="number" step="0.5" class="form-control text-center" value="${item.days || 1}" onchange="updateBudgetField(${idx}, 'days', this.value)">
@@ -1056,7 +1052,7 @@ function renderStudentListDocHTML(g, c) {
   `;
 }
 
-// Document HTML Generator: Itinerary
+// Document HTML Generator: Itinerary with text-wrapping
 function renderItineraryDocHTML(g, c) {
   const itinerary = c.itinerary || [];
   let rowsHtml = '';
@@ -1066,12 +1062,12 @@ function renderItineraryDocHTML(g, c) {
 
     rowsHtml += `
       <tr>
-        <td class="text-center" style="width: 55px; font-weight: 600;">${item.day || ''}</td>
+        <td class="text-center" style="width: 50px; font-weight: 600;">${item.day || ''}</td>
         <td class="text-center" style="width: 85px;">${formatDateDisplay(item.dateFrom)}</td>
-        <td class="text-center" style="width: 140px; font-size: 8.5pt; font-weight: 500;">${timeFormatted}</td>
-        <td style="width: 130px; font-size: 9pt;">${item.start}</td>
-        <td style="width: 140px; font-size: 9pt;">${item.destination}</td>
-        <td style="font-size: 9pt;">${item.activity}</td>
+        <td class="text-center" style="width: 135px; font-size: 8.5pt; font-weight: 500;">${timeFormatted}</td>
+        <td style="width: 140px; font-size: 9pt; word-wrap: break-word; overflow-wrap: break-word;">${item.start}</td>
+        <td style="width: 145px; font-size: 9pt; word-wrap: break-word; overflow-wrap: break-word;">${item.destination}</td>
+        <td style="font-size: 9pt; word-wrap: break-word; overflow-wrap: break-word;">${item.activity}</td>
       </tr>
     `;
   });
@@ -1091,11 +1087,11 @@ function renderItineraryDocHTML(g, c) {
       <table class="print-table">
         <thead>
           <tr>
-            <th style="width: 55px;">Day</th>
+            <th style="width: 50px;">Day</th>
             <th style="width: 85px;">Date</th>
-            <th style="width: 140px;">Time</th>
-            <th style="width: 130px;">Start</th>
-            <th style="width: 140px;">Destination</th>
+            <th style="width: 135px;">Time</th>
+            <th style="width: 140px;">Start</th>
+            <th style="width: 145px;">Destination</th>
             <th>Academic / Field Activity</th>
           </tr>
         </thead>
@@ -1141,7 +1137,7 @@ function renderBudgetDocHTML(g, budgetItems) {
         <td class="text-center" style="width: 35px; font-weight: 600;">${item.sl || idx + 1}</td>
         <td style="font-weight: 500; width: 140px;">${item.class}</td>
         <td style="width: 100px;">${item.paper}</td>
-        <td style="font-size: 8.5pt;">${item.objective}</td>
+        <td style="font-size: 8.5pt; word-wrap: break-word; overflow-wrap: break-word;">${item.objective}</td>
         <td class="text-center" style="width: 45px;">${days}</td>
         <td class="text-center" style="width: 45px;">${students}</td>
         <td class="text-center" style="width: 60px;">₹${rate}</td>

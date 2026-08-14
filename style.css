@@ -36,7 +36,7 @@
   padding: 0;
 }
 
-/* Remove ugly number spinner arrows that hide numbers */
+/* Remove number spinner arrows that hide numbers */
 input[type=number]::-webkit-inner-spin-button, 
 input[type=number]::-webkit-outer-spin-button { 
   -webkit-appearance: none; 
@@ -393,6 +393,8 @@ body {
   background-color: #ffffff;
   color: var(--text-main);
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .form-control:focus {
@@ -404,9 +406,13 @@ body {
 textarea.form-control {
   min-height: 70px;
   resize: vertical;
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.35;
 }
 
-/* Sub-Navigation (e.g. for Classes) */
+/* Sub-Navigation */
 .sub-tabs {
   display: flex;
   gap: 8px;
@@ -457,18 +463,7 @@ textarea.form-control {
   font-size: 0.85rem;
 }
 
-.sl-input {
-  width: 60px;
-  padding: 6px 4px;
-  text-align: center;
-  font-weight: 700;
-  color: #0f172a;
-  background: #f8fafc;
-  border: 1px solid #cbd5e1;
-  border-radius: var(--radius-sm);
-}
-
-/* Interactive Tables with Fit-Width Layout */
+/* Interactive Tables with Fit-Width Layout and Text Wrap */
 .table-responsive {
   width: 100%;
   overflow-x: auto;
@@ -497,6 +492,8 @@ textarea.form-control {
   padding: 8px 12px;
   border-bottom: 1px solid var(--border-color);
   vertical-align: middle;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .data-table tbody tr:last-child td {
@@ -510,6 +507,13 @@ textarea.form-control {
 .data-table td .form-control {
   padding: 6px 10px;
   font-size: 0.85rem;
+}
+
+.data-table td textarea.form-control {
+  white-space: pre-wrap;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.35;
 }
 
 /* Stat Cards */
@@ -713,6 +717,8 @@ textarea.form-control {
   padding: 4px 5px;
   vertical-align: top;
   font-size: 10pt;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .proforma-table td.col-num {
@@ -769,7 +775,7 @@ textarea.form-control {
   font-weight: 600;
 }
 
-/* Printable Bordered Tables */
+/* Printable Bordered Tables with text-wrap */
 .print-table {
   width: 100%;
   border-collapse: collapse;
@@ -781,6 +787,8 @@ textarea.form-control {
 .print-table td {
   border: 1px solid #000000;
   padding: 5px 6px;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .print-table th {
