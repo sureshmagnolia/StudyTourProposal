@@ -88,7 +88,7 @@ function addDaysToDate(dateStr, daysToAdd) {
   return d.toISOString().split('T')[0];
 }
 
-// Synchronize Class commencement date, completion date, total days, and halt days from its itinerary
+// Synchronize Class commencement date, completion date, total days, and halt days from its itinerary, and auto-calculate Day number per row
 function syncClassDatesFromItinerary(c) {
   if (!c || !c.itinerary || c.itinerary.length === 0) return;
 
@@ -108,6 +108,18 @@ function syncClassDatesFromItinerary(c) {
       const totalDays = Math.max(diffDays, uniqueDates.size, 1);
       c.totalDays = totalDays;
       c.haltDays = Math.max(0, totalDays - 1);
+
+      // Auto-update Day number for each itinerary item based on its dateFrom relative to commencement (minDate)
+      c.itinerary.forEach((item) => {
+        if (item.dateFrom) {
+          const dItem = new Date(item.dateFrom);
+          if (!isNaN(dItem.getTime())) {
+            const offset = Math.round((dItem - d1) / (1000 * 60 * 60 * 24));
+            const dayNum = Math.max(1, offset + 1);
+            item.day = `Day ${dayNum}`;
+          }
+        }
+      });
     }
 
     // If active profile form is currently on screen, refresh its input values
@@ -656,16 +668,14 @@ function addItineraryItem() {
   if (!c) return;
   if (!c.itinerary) c.itinerary = [];
   
-  let nextDayNum = 1;
   let nextDate = c.commenceDate || '2025-09-09';
+  let nextDayNum = 1;
 
   if (c.itinerary.length > 0) {
     const lastItem = c.itinerary[c.itinerary.length - 1];
+    nextDate = lastItem.dateFrom || nextDate;
     const match = (lastItem.day || '').match(/\d+/);
-    nextDayNum = match ? parseInt(match[0]) + 1 : c.itinerary.length + 1;
-    if (lastItem.dateFrom) {
-      nextDate = addDaysToDate(lastItem.dateFrom, 1);
-    }
+    nextDayNum = match ? parseInt(match[0]) : 1;
   }
 
   c.itinerary.push({
