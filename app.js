@@ -1301,6 +1301,7 @@ function importDataJSON(event) {
     } catch (err) {
       alert('Error parsing JSON file.');
     }
+    event.target.value = '';
   };
   reader.readAsText(file);
 }
