@@ -55,6 +55,15 @@ function formatDateDisplay(dateStr) {
   return dateStr;
 }
 
+// Helper to add days to YYYY-MM-DD string
+function addDaysToDate(dateStr, daysToAdd) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  d.setDate(d.getDate() + daysToAdd);
+  return d.toISOString().split('T')[0];
+}
+
 // --- Initialize App State ---
 function initApp() {
   const saved = localStorage.getItem('TOUR_PROPOSAL_DATA');
@@ -281,7 +290,7 @@ function renderStudentsTable() {
 
   const students = c.students || [];
   if (students.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="padding: 24px; color: #94a3b8;">No students added yet. Click "Add Student" or "Bulk Import / Paste" to add records.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="5" class="text-center" style="padding: 28px; color: #64748b; font-size: 0.9rem;">No students added yet. Click "Add Student" or "Bulk Import / Paste from Excel" to add records.</td></tr>`;
     return;
   }
 
@@ -289,11 +298,11 @@ function renderStudentsTable() {
   students.forEach((st, idx) => {
     html += `
       <tr>
-        <td style="width: 60px;">
-          <input type="number" class="form-control" value="${st.sl || idx + 1}" onchange="updateStudentField(${idx}, 'sl', this.value)" style="text-align: center;">
+        <td style="width: 75px; text-align: center;">
+          <span class="sl-badge">${st.sl || idx + 1}</span>
         </td>
         <td>
-          <input type="text" class="form-control" value="${st.name || ''}" placeholder="Student Full Name" onchange="updateStudentField(${idx}, 'name', this.value)">
+          <input type="text" class="form-control" value="${st.name || ''}" placeholder="Student Full Name" onchange="updateStudentField(${idx}, 'name', this.value)" style="font-weight: 500;">
         </td>
         <td style="width: 130px;">
           <select class="form-control" onchange="updateStudentField(${idx}, 'gender', this.value)">
@@ -301,8 +310,8 @@ function renderStudentsTable() {
             <option value="Male" ${st.gender === 'Male' ? 'selected' : ''}>Male</option>
           </select>
         </td>
-        <td style="width: 90px;">
-          <input type="number" class="form-control" value="${st.age || 20}" onchange="updateStudentField(${idx}, 'age', this.value)" style="text-align: center;">
+        <td style="width: 90px; text-align: center;">
+          <input type="number" class="form-control text-center" value="${st.age || 20}" onchange="updateStudentField(${idx}, 'age', this.value)">
         </td>
         <td style="width: 60px; text-align: center;">
           <button class="btn btn-danger btn-sm btn-icon" onclick="deleteStudent(${idx})" title="Delete Student">
@@ -378,11 +387,9 @@ function processBulkImport() {
   lines.forEach((line, index) => {
     line = line.trim();
     if (!line) return;
-    // split by tabs or multiple spaces or commas
     let parts = line.includes('\t') ? line.split('\t') : (line.includes(',') ? line.split(',') : line.split(/\s{2,}/));
     parts = parts.map(p => p.trim());
 
-    // Check if header line
     if (index === 0 && (parts.some(p => /name|gender|age|sl/i.test(p)))) {
       return;
     }
@@ -436,7 +443,7 @@ function processBulkImport() {
   renderActiveProfileForm();
 }
 
-// --- Itinerary Table Management ---
+// --- Itinerary Table Management with Continuous Chronological Ordering ---
 function renderItineraryTable() {
   const c = getActiveClass();
   const tbody = document.getElementById('itineraryTableBody');
@@ -444,21 +451,30 @@ function renderItineraryTable() {
 
   const itinerary = c.itinerary || [];
   if (itinerary.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding: 24px; color: #94a3b8;">No schedule items added. Click "Add Schedule Item" to build the daily itinerary.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding: 28px; color: #64748b; font-size: 0.9rem;">No schedule items added. Click "Add Schedule Item" or "Auto-Sequence Dates" to build the daily itinerary.</td></tr>`;
     return;
   }
 
   let html = '';
+  let prevDate = null;
   itinerary.forEach((item, idx) => {
+    // Check if dates are non-continuous / out of order
+    let isOutOfOrder = false;
+    if (prevDate && item.dateFrom && item.dateFrom < prevDate) {
+      isOutOfOrder = true;
+    }
+    if (item.dateFrom) prevDate = item.dateFrom;
+
     html += `
-      <tr>
+      <tr style="${isOutOfOrder ? 'background-color: #fff1f2;' : ''}">
         <td style="width: 90px;">
-          <input type="text" class="form-control" value="${item.day || 'Day 1'}" onchange="updateItineraryField(${idx}, 'day', this.value)">
+          <input type="text" class="form-control" value="${item.day || 'Day 1'}" onchange="updateItineraryField(${idx}, 'day', this.value)" style="font-weight: 600;">
         </td>
-        <td style="width: 140px;">
-          <input type="date" class="form-control" value="${item.dateFrom || ''}" onchange="updateItineraryField(${idx}, 'dateFrom', this.value)">
+        <td style="width: 150px;">
+          <input type="date" class="form-control" value="${item.dateFrom || ''}" onchange="updateItineraryField(${idx}, 'dateFrom', this.value)" style="${isOutOfOrder ? 'border-color: #f43f5e;' : ''}">
+          ${isOutOfOrder ? '<span style="color: #e11d48; font-size: 0.7rem; font-weight: 600;">⚠️ Date out of order</span>' : ''}
         </td>
-        <td style="width: 160px;">
+        <td style="width: 170px;">
           <div style="display: flex; gap: 4px; align-items: center;">
             <input type="text" class="form-control" placeholder="From" value="${item.timeFrom || ''}" onchange="updateItineraryField(${idx}, 'timeFrom', this.value)">
             <span>-</span>
@@ -472,10 +488,10 @@ function renderItineraryTable() {
           <input type="text" class="form-control" placeholder="Destination" value="${item.destination || ''}" onchange="updateItineraryField(${idx}, 'destination', this.value)">
         </td>
         <td>
-          <textarea class="form-control" placeholder="Academic / Field Activity" onchange="updateItineraryField(${idx}, 'activity', this.value)" style="min-height: 44px; padding: 4px 8px; font-size: 0.8rem;">${item.activity || ''}</textarea>
+          <textarea class="form-control" placeholder="Academic / Field Activity" onchange="updateItineraryField(${idx}, 'activity', this.value)" style="min-height: 48px; padding: 6px 10px; font-size: 0.825rem;">${item.activity || ''}</textarea>
         </td>
         <td style="width: 50px; text-align: center;">
-          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteItineraryItem(${idx})">
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteItineraryItem(${idx})" title="Delete Schedule Row">
             <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
           </button>
         </td>
@@ -490,23 +506,37 @@ function updateItineraryField(idx, field, val) {
   const c = getActiveClass();
   if (!c || !c.itinerary[idx]) return;
   c.itinerary[idx][field] = val;
+  if (field === 'dateFrom') {
+    c.itinerary[idx]['dateTo'] = val;
+  }
   saveData();
+  renderItineraryTable();
 }
 
 function addItineraryItem() {
   const c = getActiveClass();
   if (!c) return;
   if (!c.itinerary) c.itinerary = [];
-  const dayNum = c.itinerary.length > 0 ? c.itinerary[c.itinerary.length - 1].day : 'Day 1';
+  
+  let nextDayNum = 1;
+  let nextDate = c.commenceDate || '2025-09-09';
+
+  if (c.itinerary.length > 0) {
+    const lastItem = c.itinerary[c.itinerary.length - 1];
+    const match = (lastItem.day || '').match(/\d+/);
+    nextDayNum = match ? parseInt(match[0]) : c.itinerary.length + 1;
+    nextDate = lastItem.dateFrom || nextDate;
+  }
+
   c.itinerary.push({
-    day: dayNum,
-    dateFrom: c.commenceDate || '2025-09-09',
-    dateTo: c.commenceDate || '2025-09-09',
+    day: `Day ${nextDayNum}`,
+    dateFrom: nextDate,
+    dateTo: nextDate,
     timeFrom: '06.00am',
     timeTo: '10.00am',
     start: 'Govt. Victoria College, Palakkad',
-    destination: 'Study Location',
-    activity: 'Field collection and botanical documentation'
+    destination: 'Botanical Field Site',
+    activity: 'Study and documentation of flora'
   });
   saveData();
   renderItineraryTable();
@@ -516,6 +546,53 @@ function deleteItineraryItem(idx) {
   const c = getActiveClass();
   if (!c || !c.itinerary[idx]) return;
   c.itinerary.splice(idx, 1);
+  saveData();
+  renderItineraryTable();
+}
+
+// Auto-Sequence Itinerary Dates continuously (Day 1 -> Day 2 -> Day 3 -> Day 4)
+function autoSequenceItineraryDates() {
+  const c = getActiveClass();
+  if (!c || !c.itinerary || c.itinerary.length === 0) return;
+
+  const startDate = c.commenceDate || '2025-09-09';
+  let currentDayNum = 1;
+  let currentDate = startDate;
+
+  c.itinerary.forEach((item, index) => {
+    // Check if day number is specified
+    const match = (item.day || '').match(/\d+/);
+    if (match) {
+      const dayVal = parseInt(match[0]);
+      if (dayVal >= 1) {
+        currentDayNum = dayVal;
+      }
+    } else {
+      item.day = `Day ${currentDayNum}`;
+    }
+
+    currentDate = addDaysToDate(startDate, currentDayNum - 1);
+    item.dateFrom = currentDate;
+    item.dateTo = currentDate;
+  });
+
+  saveData();
+  renderItineraryTable();
+  alert('Itinerary dates have been auto-sequenced continuously based on the tour commencement date (' + startDate + ').');
+}
+
+// Sort Itinerary Chronologically
+function sortItineraryChronologically() {
+  const c = getActiveClass();
+  if (!c || !c.itinerary || c.itinerary.length === 0) return;
+
+  c.itinerary.sort((a, b) => {
+    const dA = a.dateFrom || '';
+    const dB = b.dateFrom || '';
+    if (dA !== dB) return dA.localeCompare(dB);
+    return (a.timeFrom || '').localeCompare(b.timeFrom || '');
+  });
+
   saveData();
   renderItineraryTable();
 }
@@ -542,7 +619,7 @@ function renderBudgetTable() {
 
     html += `
       <tr>
-        <td style="width: 50px; text-align: center;">${item.sl || idx + 1}</td>
+        <td style="width: 50px; text-align: center; font-weight: 600;">${item.sl || idx + 1}</td>
         <td style="width: 170px;">
           <input type="text" class="form-control" value="${item.class || ''}" onchange="updateBudgetField(${idx}, 'class', this.value)">
         </td>
@@ -623,7 +700,6 @@ function autoSyncBudgetCounts() {
     return;
   }
 
-  // Build map of counts
   const classCountMap = {};
   tourData.classes.forEach(c => {
     const cnt = c.students ? c.students.length : 0;
@@ -867,8 +943,8 @@ function renderStudentListDocHTML(g, c) {
   students.forEach((s, idx) => {
     rowsHtml += `
       <tr>
-        <td class="text-center" style="width: 50px;">${s.sl || idx + 1}</td>
-        <td>${s.name || ''}</td>
+        <td class="text-center" style="width: 50px; font-weight: 600;">${s.sl || idx + 1}</td>
+        <td style="font-weight: 500;">${s.name || ''}</td>
         <td class="text-center" style="width: 90px;">${s.gender || ''}</td>
         <td class="text-center" style="width: 70px;">${s.age || ''}</td>
       </tr>
@@ -906,7 +982,7 @@ function renderStudentListDocHTML(g, c) {
         <p><strong>Lady Escorting Faculty:</strong> ${c.escortingStaff || 'None'}</p>
       </div>
 
-      <div class="doc-signatures" style="margin-top: 40px;">
+      <div class="doc-signatures" style="margin-top: 35px;">
         <div>
           <p>Verified by:</p>
           <br><br>
@@ -968,7 +1044,7 @@ function renderItineraryDocHTML(g, c) {
         </tbody>
       </table>
 
-      <div class="doc-signatures" style="margin-top: 40px;">
+      <div class="doc-signatures" style="margin-top: 35px;">
         <div>
           <p>Staff in Charge:</p>
           <br><br>
@@ -1002,7 +1078,7 @@ function renderBudgetDocHTML(g, budgetItems) {
 
     rowsHtml += `
       <tr>
-        <td class="text-center" style="width: 35px;">${item.sl || idx + 1}</td>
+        <td class="text-center" style="width: 35px; font-weight: 600;">${item.sl || idx + 1}</td>
         <td style="font-weight: 500; width: 140px;">${item.class}</td>
         <td style="width: 100px;">${item.paper}</td>
         <td style="font-size: 8.5pt;">${item.objective}</td>
@@ -1059,7 +1135,7 @@ function renderBudgetDocHTML(g, budgetItems) {
         Certified that the study tour proposal is strictly as per the curriculum and field study practical prescribed for Undergraduate and Postgraduate degree programmes in Botany.
       </div>
 
-      <div class="doc-signatures" style="margin-top: 40px;">
+      <div class="doc-signatures" style="margin-top: 35px;">
         <div>
           <p>Place: ${g.place || 'Palakkad'}</p>
           <p>Date: ${formatDateDisplay(g.signDate)}</p>
@@ -1083,8 +1159,8 @@ function renderCombinedListDocHTML(g, classes) {
     (c.students || []).forEach(s => {
       rowsHtml += `
         <tr>
-          <td class="text-center" style="width: 50px;">${globalSl++}</td>
-          <td>${s.name}</td>
+          <td class="text-center" style="width: 50px; font-weight: 600;">${globalSl++}</td>
+          <td style="font-weight: 500;">${s.name}</td>
           <td class="text-center" style="width: 90px;">${s.gender}</td>
           <td class="text-center" style="width: 70px;">${s.age}</td>
           <td class="text-center" style="width: 110px; font-weight: 600;">${c.shortName || c.name}</td>
