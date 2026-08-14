@@ -334,6 +334,7 @@ function saveActiveClassProfile() {
 
   saveData();
   renderClassSubTabs();
+  renderBudgetTable();
 }
 
 // --- Student List Management ---
@@ -658,6 +659,7 @@ function renderBudgetTable() {
   if (!tbody) return;
 
   const items = tourData.budgetItems || [];
+  const availableClasses = tourData.classes || [];
   let html = '';
   let grandTotalDays = 0;
   let grandTotalCost = 0;
@@ -672,11 +674,29 @@ function renderBudgetTable() {
     grandTotalDays += totalDays;
     grandTotalCost += totalCost;
 
+    // Generate dropdown options dynamically from Class Proposal & Proforma Details
+    let classOptions = '';
+    let isMatched = false;
+
+    availableClasses.forEach(c => {
+      const isSelected = item.class === c.name || item.class === c.shortName;
+      if (isSelected) isMatched = true;
+      const safeName = (c.name || '').replace(/"/g, '&quot;');
+      classOptions += `<option value="${safeName}" ${isSelected ? 'selected' : ''}>${c.name}</option>`;
+    });
+
+    if (!isMatched && item.class) {
+      const safeCustom = String(item.class).replace(/"/g, '&quot;');
+      classOptions = `<option value="${safeCustom}" selected>${safeCustom}</option>` + classOptions;
+    }
+
     html += `
       <tr>
         <td style="width: 50px; text-align: center; font-weight: 600;">${item.sl || idx + 1}</td>
-        <td style="width: 170px;">
-          <input type="text" class="form-control" value="${item.class || ''}" onchange="updateBudgetField(${idx}, 'class', this.value)">
+        <td style="width: 200px;">
+          <select class="form-control" onchange="updateBudgetClass(${idx}, this.value)" style="font-size: 0.85rem; font-weight: 500;">
+            ${classOptions}
+          </select>
         </td>
         <td style="width: 140px;">
           <input type="text" class="form-control" value="${item.paper || ''}" onchange="updateBudgetField(${idx}, 'paper', this.value)">
@@ -711,6 +731,20 @@ function renderBudgetTable() {
   document.getElementById('budgetWordsPreview').innerText = numberToIndianWords(grandTotalCost);
 }
 
+function updateBudgetClass(idx, selectedClassName) {
+  if (!tourData.budgetItems[idx]) return;
+  tourData.budgetItems[idx].class = selectedClassName;
+
+  // Auto-sync student count from the matched class roster
+  const matchedClass = (tourData.classes || []).find(c => c.name === selectedClassName || c.shortName === selectedClassName);
+  if (matchedClass && matchedClass.students && matchedClass.students.length > 0) {
+    tourData.budgetItems[idx].students = matchedClass.students.length;
+  }
+
+  saveData();
+  renderBudgetTable();
+}
+
 function updateBudgetField(idx, field, val) {
   if (!tourData.budgetItems[idx]) return;
   if (field === 'days' || field === 'rate') {
@@ -727,13 +761,17 @@ function updateBudgetField(idx, field, val) {
 function addBudgetItem() {
   if (!tourData.budgetItems) tourData.budgetItems = [];
   const defaultRate = (tourData.general && tourData.general.ratePerDay) || 500;
+  const firstClass = (tourData.classes && tourData.classes.length > 0) ? tourData.classes[0] : null;
+  const className = firstClass ? firstClass.name : 'B.Sc. Botany (5th Semester)';
+  const studentCount = firstClass && firstClass.students ? firstClass.students.length : 15;
+
   tourData.budgetItems.push({
     sl: tourData.budgetItems.length + 1,
-    class: 'MSc Botany Semester 1',
+    class: className,
     paper: 'Field Botany',
     objective: 'Collection and field submission of botanical specimens',
     days: 1,
-    students: 15,
+    students: studentCount,
     rate: defaultRate
   });
   saveData();
@@ -766,7 +804,14 @@ function autoSyncBudgetCounts() {
 
   tourData.budgetItems.forEach(b => {
     const cls = (b.class || '').toLowerCase();
-    if (cls.includes('bsc') && classCountMap['bsc'] !== undefined) {
+    const matchedClass = (tourData.classes || []).find(c =>
+      c.name.toLowerCase() === cls ||
+      c.shortName.toLowerCase() === cls
+    );
+
+    if (matchedClass && matchedClass.students) {
+      b.students = matchedClass.students.length;
+    } else if (cls.includes('bsc') && classCountMap['bsc'] !== undefined) {
       b.students = classCountMap['bsc'];
     } else if (cls.includes('msc') && (cls.includes('3') || cls.includes('4')) && classCountMap['msc3'] !== undefined) {
       b.students = classCountMap['msc3'];
