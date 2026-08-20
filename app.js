@@ -1295,13 +1295,8 @@ function renderStudentListDocHTML(g, c) {
       </div>
 
       <div class="doc-signatures" style="margin-top: 35px;">
-        <div>
-          <p>Verified by:</p>
-          <br><br>
-          <p><strong>Tour Coordinator</strong></p>
-        </div>
+        <div></div>
         <div style="text-align: right;">
-          <p>Forwarded by:</p>
           <br><br>
           <p><strong>Head of the Department</strong></p>
         </div>
@@ -1359,13 +1354,8 @@ function renderItineraryDocHTML(g, c) {
       </table>
 
       <div class="doc-signatures" style="margin-top: 35px;">
-        <div>
-          <p>Staff in Charge:</p>
-          <br><br>
-          <p><strong>Faculty Escort</strong></p>
-        </div>
+        <div></div>
         <div style="text-align: right;">
-          <p>Approved:</p>
           <br><br>
           <p><strong>Head of the Department</strong></p>
         </div>
