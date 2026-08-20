@@ -239,7 +239,45 @@ function renderAll() {
   renderItineraryTable();
   renderBudgetTable();
   updateStats();
+  renderPreviewFilterOptions();
   renderPreview();
+}
+
+function renderPreviewFilterOptions() {
+  const select = document.getElementById('previewDocFilter');
+  if (!select) return;
+  const currentVal = select.value || 'all';
+
+  let html = `
+    <option value="all">📑 All Documents (Full Dossier Batch Print)</option>
+    <optgroup label="Batch Documents by Type">
+      <option value="proforma">📋 Proformas Only (All Classes)</option>
+      <option value="list">👥 Student Lists Only (All Classes)</option>
+      <option value="itinerary">🗺️ Itineraries Only (All Classes)</option>
+      <option value="budget">💰 Budget Proposal Only</option>
+      <option value="combined">📊 Consolidated Master Student List</option>
+    </optgroup>
+  `;
+
+  if (tourData.classes && tourData.classes.length > 0) {
+    html += `<optgroup label="Specific Class Documents">`;
+    tourData.classes.forEach(c => {
+      const name = c.shortName || c.name;
+      html += `
+        <option value="itinerary_${c.id}">🗺️ ${name} – Itinerary Only</option>
+        <option value="proforma_${c.id}">📋 ${name} – Proforma Only</option>
+        <option value="list_${c.id}">👥 ${name} – Student List Only</option>
+      `;
+    });
+    html += `</optgroup>`;
+  }
+
+  select.innerHTML = html;
+  if (Array.from(select.options).some(opt => opt.value === currentVal)) {
+    select.value = currentVal;
+  } else {
+    select.value = 'all';
+  }
 }
 
 // --- Navigation Tabs ---
@@ -293,28 +331,45 @@ function getActiveClass() {
 }
 
 function renderClassSubTabs() {
-  const container = document.getElementById('classSubTabs');
-  if (!container) return;
+  const containers = [
+    document.getElementById('classSubTabs'),
+    document.getElementById('itineraryClassSubTabs')
+  ];
 
-  let html = '';
-  tourData.classes.forEach(c => {
-    const isActive = c.id === activeClassId ? 'active' : '';
-    html += `
-      <button class="sub-tab-btn ${isActive}" onclick="setActiveClass('${c.id}')">
-        <span>${c.shortName || c.name}</span>
-        <span class="badge" style="background: ${isActive ? '#2563eb' : '#cbd5e1'}; color: ${isActive ? '#fff' : '#1e293b'}">${c.students ? c.students.length : 0}</span>
-      </button>
-    `;
+  containers.forEach(container => {
+    if (!container) return;
+    let html = '';
+    tourData.classes.forEach(c => {
+      const isActive = c.id === activeClassId ? 'active' : '';
+      const itemCount = (c.itinerary || []).length;
+      const countBadge = container.id === 'itineraryClassSubTabs' 
+        ? `${itemCount} stops` 
+        : `${c.students ? c.students.length : 0}`;
+
+      html += `
+        <button class="sub-tab-btn ${isActive}" onclick="setActiveClass('${c.id}')">
+          <span>${c.shortName || c.name}</span>
+          <span class="badge" style="background: ${isActive ? '#2563eb' : '#cbd5e1'}; color: ${isActive ? '#fff' : '#1e293b'}">${countBadge}</span>
+        </button>
+      `;
+    });
+
+    if (container.id === 'classSubTabs') {
+      html += `
+        <button class="btn btn-secondary btn-sm" onclick="promptAddNewClass()" style="margin-left: auto;">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
+          Add Class
+        </button>
+      `;
+    }
+    container.innerHTML = html;
   });
 
-  html += `
-    <button class="btn btn-secondary btn-sm" onclick="promptAddNewClass()" style="margin-left: auto;">
-      <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path></svg>
-      Add Class
-    </button>
-  `;
-
-  container.innerHTML = html;
+  const activeC = getActiveClass();
+  const badgeEl = document.getElementById('itineraryClassBadge');
+  if (badgeEl && activeC) {
+    badgeEl.innerText = `Active: ${activeC.shortName || activeC.name}`;
+  }
 }
 
 function setActiveClass(classId) {
@@ -598,7 +653,7 @@ function renderItineraryTable() {
 
   const itinerary = c.itinerary || [];
   if (itinerary.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding: 28px; color: #64748b; font-size: 0.9rem;">No schedule items added. Click "Add Schedule Item" or "Auto-Sequence Dates" to build the daily itinerary.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center" style="padding: 28px; color: #64748b; font-size: 0.9rem;">No schedule items added for ${c.shortName || c.name}. Click "Add Schedule Item" or "Auto-Sequence Dates" to build the daily itinerary.</td></tr>`;
     return;
   }
 
@@ -617,27 +672,47 @@ function renderItineraryTable() {
     html += `
       <tr style="${isOutOfOrder ? 'background-color: #fff1f2;' : ''}">
         <td style="width: 85px;">
-          <input type="text" class="form-control" value="${item.day || 'Day 1'}" onchange="updateItineraryField(${idx}, 'day', this.value)" style="font-weight: 600; text-align: center;">
+          <input type="text" class="form-control" value="${item.day || 'Day 1'}" 
+                 oninput="updateItineraryField(${idx}, 'day', this.value, false)" 
+                 onchange="updateItineraryField(${idx}, 'day', this.value, true)" 
+                 style="font-weight: 600; text-align: center;">
         </td>
         <td style="width: 145px;">
-          <input type="date" class="form-control" value="${item.dateFrom || ''}" onchange="updateItineraryField(${idx}, 'dateFrom', this.value)" style="${isOutOfOrder ? 'border-color: #f43f5e;' : ''}">
+          <input type="date" class="form-control" value="${item.dateFrom || ''}" 
+                 onchange="updateItineraryField(${idx}, 'dateFrom', this.value, true)" 
+                 style="${isOutOfOrder ? 'border-color: #f43f5e;' : ''}">
           ${isOutOfOrder ? '<span style="color: #e11d48; font-size: 0.7rem; font-weight: 600;">⚠️ Out of order</span>' : ''}
         </td>
         <td style="width: 210px;">
           <div style="display: flex; gap: 5px; align-items: center;">
-            <input type="time" class="form-control" value="${tFrom24}" onchange="updateItineraryField(${idx}, 'timeFrom', this.value)" title="Departure / Start Time">
+            <input type="time" class="form-control" value="${tFrom24}" 
+                   oninput="updateItineraryField(${idx}, 'timeFrom', this.value, false)" 
+                   onchange="updateItineraryField(${idx}, 'timeFrom', this.value, true)" 
+                   title="Departure / Start Time">
             <span style="font-weight: 600; color: #64748b;">–</span>
-            <input type="time" class="form-control" value="${tTo24}" onchange="updateItineraryField(${idx}, 'timeTo', this.value)" title="Arrival / End Time">
+            <input type="time" class="form-control" value="${tTo24}" 
+                   oninput="updateItineraryField(${idx}, 'timeTo', this.value, false)" 
+                   onchange="updateItineraryField(${idx}, 'timeTo', this.value, true)" 
+                   title="Arrival / End Time">
           </div>
         </td>
         <td style="width: 180px;">
-          <textarea class="form-control" placeholder="Starting Point" onchange="updateItineraryField(${idx}, 'start', this.value)" style="min-height: 48px; padding: 6px 10px; font-size: 0.825rem;">${item.start || ''}</textarea>
+          <textarea class="form-control" placeholder="Starting Point" 
+                    oninput="updateItineraryField(${idx}, 'start', this.value, false)" 
+                    onchange="updateItineraryField(${idx}, 'start', this.value, false)" 
+                    style="min-height: 48px; padding: 6px 10px; font-size: 0.825rem;">${item.start || ''}</textarea>
         </td>
         <td style="width: 180px;">
-          <textarea class="form-control" placeholder="Destination" onchange="updateItineraryField(${idx}, 'destination', this.value)" style="min-height: 48px; padding: 6px 10px; font-size: 0.825rem;">${item.destination || ''}</textarea>
+          <textarea class="form-control" placeholder="Destination" 
+                    oninput="updateItineraryField(${idx}, 'destination', this.value, false)" 
+                    onchange="updateItineraryField(${idx}, 'destination', this.value, false)" 
+                    style="min-height: 48px; padding: 6px 10px; font-size: 0.825rem;">${item.destination || ''}</textarea>
         </td>
         <td>
-          <textarea class="form-control" placeholder="Academic / Field Activity" onchange="updateItineraryField(${idx}, 'activity', this.value)" style="min-height: 48px; padding: 6px 10px; font-size: 0.825rem;">${item.activity || ''}</textarea>
+          <textarea class="form-control" placeholder="Academic / Field Activity" 
+                    oninput="updateItineraryField(${idx}, 'activity', this.value, false)" 
+                    onchange="updateItineraryField(${idx}, 'activity', this.value, false)" 
+                    style="min-height: 48px; padding: 6px 10px; font-size: 0.825rem;">${item.activity || ''}</textarea>
         </td>
         <td style="width: 50px; text-align: center;">
           <button class="btn btn-danger btn-sm btn-icon" onclick="deleteItineraryItem(${idx})" title="Delete Schedule Row">
@@ -651,16 +726,19 @@ function renderItineraryTable() {
   tbody.innerHTML = html;
 }
 
-function updateItineraryField(idx, field, val) {
+function updateItineraryField(idx, field, val, shouldRerender = false) {
   const c = getActiveClass();
-  if (!c || !c.itinerary[idx]) return;
+  if (!c || !c.itinerary || !c.itinerary[idx]) return;
   c.itinerary[idx][field] = val;
   if (field === 'dateFrom') {
     c.itinerary[idx]['dateTo'] = val;
+    syncClassDatesFromItinerary(c);
   }
-  syncClassDatesFromItinerary(c);
   saveData();
-  renderItineraryTable();
+  renderClassSubTabs();
+  if (shouldRerender) {
+    renderItineraryTable();
+  }
 }
 
 function addItineraryItem() {
@@ -1245,9 +1323,9 @@ function renderItineraryDocHTML(g, c) {
         <td class="text-center" style="width: 50px; font-weight: 600;">${item.day || ''}</td>
         <td class="text-center" style="width: 85px;">${formatDateDisplay(item.dateFrom)}</td>
         <td class="text-center" style="width: 135px; font-size: 8.5pt; font-weight: 500;">${timeFormatted}</td>
-        <td style="width: 140px; font-size: 9pt; word-wrap: break-word; overflow-wrap: break-word;">${item.start}</td>
-        <td style="width: 145px; font-size: 9pt; word-wrap: break-word; overflow-wrap: break-word;">${item.destination}</td>
-        <td style="font-size: 9pt; word-wrap: break-word; overflow-wrap: break-word;">${item.activity}</td>
+        <td style="width: 140px; font-size: 9pt; word-wrap: break-word; overflow-wrap: break-word;">${item.start || ''}</td>
+        <td style="width: 145px; font-size: 9pt; word-wrap: break-word; overflow-wrap: break-word;">${item.destination || ''}</td>
+        <td style="font-size: 9pt; word-wrap: break-word; overflow-wrap: break-word;">${item.activity || ''}</td>
       </tr>
     `;
   });
